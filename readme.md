@@ -9,10 +9,10 @@
 
 | Key | Function |
 |-|-|
-| `C-[` | Move left |
-| `C-k` | Move down |
-| `C-i` | Move up|
-| `C-]` | Move right |
+| `C-h` | Move left |
+| `C-j`,`\n` | Move down |
+| `C-k` | Move up|
+| `C-l` | Move right |
 | `C-w` | Next Word |
 | `C-b` | Previous Word |
 | `C-e` | End of Line |
@@ -20,6 +20,7 @@
 | `C-y` | Yank selection |
 | `C-p` | Paste |
 | `C-v` | Start/End selection |
+| `C-n`   | New line |
 | `C-x-q` | quit |
 | `C-x-c` | close buffer |
 | `C-x-n` | next buffer |

@@ -93,11 +93,11 @@ void ATE_EnterCommand(ATE_BufferManager *Manager, char NewChar)
          * */
 
         // Sub Section #0 - standard movement
-        else if (NewChar == CTRL('[') && Buffer->CursorPos.X > 0)
+        else if (NewChar == CTRL('h') && Buffer->CursorPos.X > 0)
         {
                 Buffer->CursorPos.X -= 1;
         }
-        else if (NewChar == CTRL('k'))
+        else if (NewChar == CTRL('j'))
         {
                 if (Buffer->CursorPos.Y < Buffer->Data.Lines - 1)
                 {
@@ -108,7 +108,7 @@ void ATE_EnterCommand(ATE_BufferManager *Manager, char NewChar)
                                 Buffer->WindowPos.Y = Buffer->CursorPos.Y - Buffer->WindowSize.Y + 1;
                 }
         }
-        else if (NewChar == CTRL('i'))
+        else if (NewChar == CTRL('k'))
         {
                 if (Buffer->CursorPos.Y > 0)
                 {
@@ -119,7 +119,7 @@ void ATE_EnterCommand(ATE_BufferManager *Manager, char NewChar)
                                 Buffer->WindowPos.Y = Buffer->CursorPos.Y;
                 }
         }
-        else if (NewChar == CTRL(']'))
+        else if (NewChar == CTRL('l'))
         {
                 const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
                 Buffer->CursorPos.X = MIN(Buffer->CursorPos.X + 1, len-1);
@@ -235,10 +235,10 @@ void ATE_EnterCommand(ATE_BufferManager *Manager, char NewChar)
                         Buffer->CursorPos.X = prev_line_len - 1;
                 }
         }
-        else if (NewChar == '\n')
+        else if (NewChar == CTRL('n'))
         {
                 const size_t offset = Buffer->CursorPos.X + Buffer->Data.LineOffsets[Buffer->CursorPos.Y];
-                DA_INSERT(&Buffer->Data, offset, NewChar);
+                DA_INSERT(&Buffer->Data, offset, '\n');
                 ATE_ComputeLines(&Buffer->Data);
                 Buffer->CursorPos.Y += 1;
                 Buffer->CursorPos.X  = 0;
