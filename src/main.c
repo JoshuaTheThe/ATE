@@ -21,6 +21,8 @@ int main(int c, char **v)
                         ATE_EnterCommand(&Man, key);
                         ATE_Render(&Man, stdout);
                 }
+
+                usleep(10000);
         }
 
         ATE_CloseManager(&Man);
