@@ -98,6 +98,9 @@ typedef struct
         ATE_Position CursorPos;
         ATE_Position WindowPos; // scroll offset
         ATE_Position WindowSize;// dimensions of tty
+        ATE_Position SelectionStart;
+        ATE_Position SelectionEnd;
+        bool         Selecting;
 } ATE_Buffer;
 
 typedef struct
@@ -116,7 +119,8 @@ typedef struct
                 size_t      Capacity;
         } Buffers;
 
-        size_t Focused;
+        size_t   Focused;
+        ATE_Text Clipboard;
 } ATE_BufferManager;
 
 /*

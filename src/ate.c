@@ -20,6 +20,7 @@ void ATE_CloseManager(ATE_BufferManager *man)
                 ATE_CloseBufferIdx(man, 0);
         if (man->Buffers.Data)
                 free(man->Buffers.Data);
+        ATE_FreeText(&man->Clipboard);
         man->Focused = 0;
 }
 

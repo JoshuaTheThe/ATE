@@ -125,6 +125,32 @@ int main(int c, char **v)
                         {
                                 Buffer->CursorPos.X -= 1;
                         }
+                        else if (key == CTRL('c'))
+                        {
+                                ATE_FreeText(&Man.Clipboard);
+                                Man.Clipboard = ATE_YankSelection(
+                                                        Buffer,
+                                                        Buffer->SelectionStart,
+                                                        Buffer->SelectionEnd);
+                        }
+                        else if (key == CTRL('v'))
+                        {
+                                ATE_InsertText(Buffer,
+                                               &Man.Clipboard,
+                                               Buffer->CursorPos);
+                        }
+                        else if (key == CTRL('@'))
+                        {
+                                Buffer->Selecting = !Buffer->Selecting;
+                                if (Buffer->Selecting)
+                                        Buffer->SelectionStart = Buffer->CursorPos;
+                                else
+                                        Buffer->SelectionEnd = Buffer->CursorPos;
+                        }
+                        else if (key == CTRL('v'))
+                        {
+                                Buffer->SelectionStart = Buffer->CursorPos;
+                        }
                         else if (key == CTRL('s'))
                         {
                                 if (Buffer->Path.Data[Buffer->Path.Count-1])
