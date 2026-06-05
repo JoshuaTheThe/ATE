@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <assert.h>
 
 static struct termios orig_termios;
 static int old_flags;
@@ -71,18 +72,19 @@ int main(int c, char **v)
         
         for (size_t i = 1; i < c; ++i)
         {
-                FILE *fp = fopen(v[i], "rb");
-                if (!fp)
-                        continue;
                 ATE_Buffer *New = ATE_OpenBuffer(&Man);
-                ATE_ReadFile(New, fp);
-                ATE_ComputeLines(&New->Data);
                 New->WindowSize.Y = term_rows;
                 New->WindowSize.X = term_cols;
                 New->WindowPos.Y = 0;
                 New->WindowPos.X = 0;
                 New->CursorPos.Y = 0;
                 New->CursorPos.X = 0;
+                New->Path        = ATE_CreateText(v[i]);
+                FILE *fp = fopen(v[i], "rb");
+                if (!fp)
+                        continue;
+                ATE_ReadFile(New, fp);
+                ATE_ComputeLines(&New->Data);
                 fclose(fp);
         }
         
@@ -96,6 +98,18 @@ int main(int c, char **v)
                         if (key == CTRL('h') && Buffer->CursorPos.X > 0)
                         {
                                 Buffer->CursorPos.X -= 1;
+                        }
+                        else if (key == CTRL('w'))
+                        {
+                                if (Buffer->Path.Data[Buffer->Path.Count-1])
+                                {
+                                        ATE_AppendCharToText(&Buffer->Path, 0);
+                                }
+                                FILE *fp = fopen(Buffer->Path.Data, "w");
+                                if (!fp)
+                                        continue;
+                                ATE_WriteFile(Buffer, fp);
+                                fclose(fp);
                         }
                         else if (key == CTRL('z'))
                         {
@@ -117,28 +131,75 @@ int main(int c, char **v)
                                 const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
                                 Buffer->CursorPos.X = MIN(Buffer->CursorPos.X + 1, len-1);
                         }
-                        else if (key == CTRL('j'))
+                        else if (key == CTRL('j'))  // Down
                         {
-                                Buffer->CursorPos.Y = MIN(Buffer->Data.Lines - 1, Buffer->CursorPos.Y + 1);
-                                const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
-                                Buffer->CursorPos.X = MIN(Buffer->CursorPos.X, len-1);
-
-                                if (Buffer->CursorPos.Y > Buffer->WindowPos.Y + Buffer->WindowSize.Y)
-                                        Buffer->WindowPos.Y += 1;
+                                if (Buffer->CursorPos.Y < Buffer->Data.Lines - 1)
+                                {
+                                        Buffer->CursorPos.Y++;
+                                        const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
+                                        Buffer->CursorPos.X = MIN(Buffer->CursorPos.X, len - 1);
+                                        if (Buffer->CursorPos.Y >= Buffer->WindowPos.Y + Buffer->WindowSize.Y)
+                                                Buffer->WindowPos.Y = Buffer->CursorPos.Y - Buffer->WindowSize.Y + 1;
+                                }
                         }
-                        else if (key == CTRL('k'))
+                        else if (key == CTRL('e'))
                         {
-                                Buffer->CursorPos.Y = MAX(0, (int)Buffer->CursorPos.Y - 1);
                                 const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
-                                Buffer->CursorPos.X = MIN(Buffer->CursorPos.X, len-1);
-
-                                if (Buffer->CursorPos.Y < Buffer->WindowPos.Y)
-                                        Buffer->WindowPos.Y -= 1;
+                                Buffer->CursorPos.X = len - 1;
                         }
-
-                        if (key == CTRL('q'))
+                        else if (key == CTRL('^'))
+                        {
+                                Buffer->CursorPos.X = 0;
+                        }
+                        else if (key == CTRL('k'))  // Up
+                        {
+                                if (Buffer->CursorPos.Y > 0)
+                                {
+                                        Buffer->CursorPos.Y--;
+                                        const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
+                                        Buffer->CursorPos.X = MIN(Buffer->CursorPos.X, len - 1);
+                                        if (Buffer->CursorPos.Y < Buffer->WindowPos.Y)
+                                                Buffer->WindowPos.Y = Buffer->CursorPos.Y;
+                                }
+                        }
+                        else if (key == CTRL('q'))
                                 break;
-                        ATE_ComputeLines(&Buffer->Data);
+                        else if (key == '\b' || key == 127)
+                        {
+                                if (Buffer->CursorPos.X > 0)
+                                {
+                                        const size_t offset = Buffer->CursorPos.X + Buffer->Data.LineOffsets[Buffer->CursorPos.Y] - 1;
+                                        if (offset < Buffer->Data.Count)
+                                        DA_REMOVE(&Buffer->Data, offset);
+                                        ATE_ComputeLines(&Buffer->Data);
+                                        Buffer->CursorPos.X -= 1;
+                                }
+                                else if (Buffer->CursorPos.Y > 0)
+                                {
+                                        size_t prev_line_len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y - 1);
+                                        size_t merge_pos = Buffer->Data.LineOffsets[Buffer->CursorPos.Y];
+                                        if (merge_pos > 0 && Buffer->Data.Data[merge_pos - 1] == '\n')
+                                                DA_REMOVE(&Buffer->Data, merge_pos - 1);
+                                        ATE_ComputeLines(&Buffer->Data);
+                                        Buffer->CursorPos.Y -= 1;
+                                        Buffer->CursorPos.X = prev_line_len - 1;
+                                }
+                        }
+                        else if (key == '\n')
+                        {
+                                const size_t offset = Buffer->CursorPos.X + Buffer->Data.LineOffsets[Buffer->CursorPos.Y];
+                                DA_INSERT(&Buffer->Data, offset, key);
+                                ATE_ComputeLines(&Buffer->Data);
+                                Buffer->CursorPos.Y += 1;
+                                Buffer->CursorPos.X  = 0;
+                        }
+                        else if (key >= ' ' && key <= '~')
+                        {
+                                const size_t offset = Buffer->CursorPos.X + Buffer->Data.LineOffsets[Buffer->CursorPos.Y];
+                                DA_INSERT(&Buffer->Data, offset, key); 
+                                ATE_ComputeLines(&Buffer->Data);
+                                Buffer->CursorPos.X += 1;
+                        }
                         ATE_Render(&Man, stdout);
                 }
         }

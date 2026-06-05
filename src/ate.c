@@ -336,11 +336,11 @@ void ATE_CleanFind(ATE_FindResult Found)
 
 ATE_Text ATE_CreateText(char Data[])
 {
-        size_t length = strlen(Data);
-        char *data = malloc(length);
+        size_t length = strlen(Data) + 1;
+        char *data = calloc(1, length);
         memcpy(data, Data, length);
         return (ATE_Text){.Data=data,
-                          .Count = length,
+                          .Count = length - 1,
                           .Capacity = length,
                           .LineOffsets = NULL,
                           .Lines = 0};
