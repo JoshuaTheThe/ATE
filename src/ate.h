@@ -3,16 +3,31 @@
 #define BUFFER_H
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
+#include <assert.h>
+#include <ctype.h>
+#include <math.h>
+#include <limits.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <assert.h>
+#include <time.h>
+#include <pwd.h>
+#include <grp.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #define MIN(a,b) \
         (((a) < (b)) ? (a) : (b))
 #define MAX(a,b) \
         (((a) > (b)) ? (a) : (b))
-
-#define CTRL(CHR) (toupper(CHR) - 'A' + 1)
 
 // t s o d i n g
 #define DA_APPEND(xs, x)                                                             \
@@ -24,6 +39,21 @@
         }                                                                            \
                                                                                      \
         (xs)->Data[(xs)->Count++] = (x);                                            \
+    } while (0)
+
+// ai
+#define DA_APPEND_MANY(xs, items, num_items)                                           \
+    do {                                                                               \
+        size_t new_count = (xs)->Count + (num_items);                                   \
+        if (new_count > (xs)->Capacity) {                                              \
+            if ((xs)->Capacity == 0) (xs)->Capacity = 256;                              \
+            while (new_count > (xs)->Capacity)                                         \
+                (xs)->Capacity *= 2;                                                   \
+            (xs)->Data = realloc((xs)->Data, (xs)->Capacity * sizeof(*(xs)->Data));    \
+        }                                                                              \
+        for (size_t _i = 0; _i < (num_items); _i++) {                                  \
+            (xs)->Data[(xs)->Count++] = (items)[_i];                                   \
+        }                                                                              \
     } while (0)
 
 // ai
@@ -76,6 +106,12 @@
 
 typedef long ATE_Offset;
 
+typedef enum
+{
+        ATE_DIR,
+        ATE_FIL,
+} ATE_FileType;
+
 typedef struct
 {
         size_t    X,Y;
@@ -101,6 +137,7 @@ typedef struct
         ATE_Position SelectionStart;
         ATE_Position SelectionEnd;
         bool         Selecting;
+        ATE_FileType Type;
 } ATE_Buffer;
 
 typedef struct
@@ -180,6 +217,7 @@ ATE_Text          ATE_YankSelection(ATE_Buffer *Buffer,
 ATE_FindResult    ATE_Find(ATE_Buffer *Buffer,
                            ATE_Text *Text);
 void              ATE_CleanFind(ATE_FindResult Found);
+void              ATE_OpenPath(ATE_BufferManager *Manager, ATE_Text *Path); // create buffer from file, can be dir
 
 // e.g. copy+paste is its own buffer
 // that is done via ATE_YankSelection/ATE_InsertText
@@ -192,5 +230,7 @@ ATE_Text         ATE_CreateText(char Data[]);
 void             ATE_AppendCharToText(ATE_Text *Text, char chr);
 void             ATE_FreeText(ATE_Text *Text);
 size_t           ATE_SizeOfLine(ATE_Text *Text, size_t Line);
+ATE_Text         ATE_CopyText(ATE_Text *Text);
+int              getch(void);
 
 #endif

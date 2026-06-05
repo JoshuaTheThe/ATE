@@ -74,6 +74,62 @@ void ATE_EnterLongCommand(ATE_BufferManager *Manager, char NewChar)
                                 fclose(fp);
                         }
                 }
+                else if (Manager->Command.Data[0] == CTRL('x') && Manager->Command.Data[1] == 'd')
+                {
+                        ATE_Text Text = ATE_CreateText(".");
+                        ATE_OpenPath(Manager, &Text);
+                        ATE_FreeText(&Text);
+                }
+                else if (Manager->Command.Data[0] == CTRL('x') && (Manager->Command.Data[1] == 'o' || Manager->Command.Data[1] == 'r'))
+                {
+                        bool replace = Manager->Command.Data[1] == 'r';
+                        ATE_FreeText(&Manager->Command);
+                        size_t saved_line = Buffer->CursorPos.Y;
+                        size_t saved_col = Buffer->CursorPos.X;
+                        while (Buffer->CursorPos.X > 0)
+                        {
+                                const char *text = &Buffer->Data.Data[Buffer->Data.LineOffsets[Buffer->CursorPos.Y]];
+                                char prev_char = text[Buffer->CursorPos.X - 1];
+                                if (prev_char == ' ' || prev_char == '\t' || prev_char == '\n')
+                                        break;
+                                ATE_EnterCommand(Manager, CTRL('h'));
+                        }
+                        
+                        ATE_EnterCommand(Manager, CTRL('v'));
+                        size_t line_len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
+                        while (Buffer->CursorPos.X < line_len)
+                        {
+                                const char *text = &Buffer->Data.Data[Buffer->Data.LineOffsets[Buffer->CursorPos.Y]];
+                                char next_char = text[Buffer->CursorPos.X];
+                                if (next_char == ' ' || next_char == '\t' || next_char == '\n')
+                                        break;
+                                ATE_EnterCommand(Manager, CTRL('l'));
+                        }
+                        
+                        ATE_EnterCommand(Manager, CTRL('v'));
+                        ATE_EnterCommand(Manager, CTRL('y'));
+                        if (Manager->Clipboard.Data && Manager->Clipboard.Count > 0)
+                        {
+                                ATE_Text RelPath = ATE_CopyText(&Buffer->Path);
+                                if (RelPath.Count > 0 && RelPath.Data[RelPath.Count-1] != '/')
+                                        ATE_AppendCharToText(&RelPath, '/');
+                                for (size_t i = 0; i < Manager->Clipboard.Count; i++)
+                                {
+                                        char c = Manager->Clipboard.Data[i];
+                                        if (c != '\n' && c != '\r')  // Skip newlines
+                                                ATE_AppendCharToText(&RelPath, c);
+                                }
+                                
+                                ATE_OpenPath(Manager, &RelPath);
+                                ATE_FreeText(&RelPath);
+                                ATE_FreeText(&Manager->Clipboard);
+                        }
+                        
+                        Buffer->CursorPos.Y = saved_line;
+                        Buffer->CursorPos.X = saved_col;
+                        if (replace)
+                                ATE_CloseBuffer(Manager, Buffer);
+                }
 
                 ATE_FreeText(&Manager->Command);
         }
@@ -82,6 +138,11 @@ void ATE_EnterLongCommand(ATE_BufferManager *Manager, char NewChar)
 void ATE_EnterCommand(ATE_BufferManager *Manager, char NewChar)
 {
         ATE_Buffer *Buffer = ATE_GetFocused(Manager);
+        if (Buffer->Selecting)
+        {
+                Buffer->SelectionEnd = Buffer->CursorPos;
+        }
+
         if (Manager->Command.Count > 0) // entering command
         {
                 ATE_EnterLongCommand(Manager, NewChar);

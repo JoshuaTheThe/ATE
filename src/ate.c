@@ -1,16 +1,61 @@
 
 #include <ate.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <ctype.h>
-#include <math.h>
-#include <limits.h>
+
+static struct termios orig_termios;
+static int old_flags;
+
+int getch(void)
+{
+        int chr = 0;
+        int n = read(STDIN_FILENO, &chr, 1);
+        if (n == 0)
+                return EOF;
+        return chr;
+}
+
+static void disable_raw_mode(void)
+{
+        tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
+        fcntl(STDIN_FILENO, F_SETFL, old_flags);
+}
+
+static void enable_raw_mode(void)
+{
+        tcgetattr(STDIN_FILENO, &orig_termios);
+        old_flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+        atexit(disable_raw_mode);
+        fcntl(STDIN_FILENO, F_SETFL, old_flags | O_NONBLOCK);
+        
+        struct termios raw = orig_termios;
+        
+        raw.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | IXON | IXOFF | IXANY);
+        raw.c_oflag |= ONLCR;
+        raw.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN | TOSTOP);
+        
+        raw.c_cc[VMIN] = 0;
+        raw.c_cc[VTIME] = 0;
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+static void get_terminal_size(int *rows, int *cols)
+{
+        struct winsize w;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0)
+        {
+                *rows = w.ws_row;
+                *cols = w.ws_col;
+        }
+        else
+        {
+                *rows = 24;
+                *cols = 80;
+        }
+}
 
 ATE_BufferManager ATE_NewManager(void)
 {
         ATE_BufferManager man = {0};
+        enable_raw_mode();
         return man;
 }
 
@@ -22,6 +67,7 @@ void ATE_CloseManager(ATE_BufferManager *man)
                 free(man->Buffers.Data);
         ATE_FreeText(&man->Clipboard);
         man->Focused = 0;
+        disable_raw_mode();
 }
 
 size_t ATE_IndexOf(ATE_BufferManager *Manager, ATE_Buffer *Buffer)
@@ -36,9 +82,17 @@ ATE_Buffer *ATE_GetFocused(ATE_BufferManager *Manager)
 
 ATE_Buffer *ATE_OpenBuffer(ATE_BufferManager *Manager)
 {
+        int term_rows, term_cols;
         ATE_Buffer new_buffer = {0};
+        get_terminal_size(&term_rows, &term_cols);
         new_buffer.WindowSize.X = 80;
         new_buffer.WindowSize.Y = 25;
+        new_buffer.WindowSize.Y = term_rows;
+        new_buffer.WindowSize.X = term_cols;
+        new_buffer.WindowPos.Y = 0;
+        new_buffer.WindowPos.X = 0;
+        new_buffer.CursorPos.Y = 0;
+        new_buffer.CursorPos.X = 0;
         DA_APPEND(&Manager->Buffers, new_buffer);
         Manager->Focused = Manager->Buffers.Count - 1;
         return &Manager->Buffers.Data[Manager->Buffers.Count - 1];
@@ -408,4 +462,136 @@ void ATE_Render(ATE_BufferManager *Manager, FILE *fp)
                 (Buffer->CursorPos.Y - Buffer->WindowPos.Y) + 1, 
                 (Buffer->CursorPos.X - Buffer->WindowPos.X) + 1 + int_padd + 1);
         fflush(fp);
+}
+
+void ATE_OpenPath(ATE_BufferManager *Manager, ATE_Text *Path)
+{
+        ATE_Text _path = ATE_CopyText(Path);
+        DA_APPEND(&_path, 0); // null terminate, ATE doesn't use null termination
+        struct stat path_stat;
+        if (stat(_path.Data, &path_stat) != 0)
+        {
+                ATE_FreeText(&_path);
+                return;
+        }
+
+        ATE_Buffer *New = ATE_OpenBuffer(Manager);
+        New->Path       = ATE_CopyText(Path);
+
+        if (S_ISDIR(path_stat.st_mode))
+        {
+                New->Type = ATE_DIR;
+                DIR *dir = opendir(_path.Data);
+                if (!dir)
+                {
+                        ATE_CloseBuffer(Manager, New);
+                        ATE_FreeText(&_path);
+                        return;
+                }
+
+                struct dirent *entry;
+                char header[256];
+                snprintf(header, sizeof(header), "Directory: %s\n\n", _path.Data);
+                DA_APPEND_MANY(&New->Data, header, strlen(header));
+
+                // Add column headers
+                char *headers = "Permissions  Links Owner    Group    Size     Date Modified        Name\n";
+                DA_APPEND_MANY(&New->Data, headers, strlen(headers));
+
+                while ((entry = readdir(dir)) != NULL)
+                {
+                        char fullpath[PATH_MAX];
+                        snprintf(fullpath, sizeof(fullpath), "%s/%s", _path.Data, entry->d_name);
+                        
+                        struct stat st;
+                        if (stat(fullpath, &st) != 0)
+                                continue;
+                        
+                        char line[512];
+                        char perms[12];
+                        char date[20];
+                        char size_str[12];
+                        
+                        // Format permissions (rwx style)
+                        perms[0] = S_ISDIR(st.st_mode) ? 'd' : '-';
+                        perms[1] = (st.st_mode & S_IRUSR) ? 'r' : '-';
+                        perms[2] = (st.st_mode & S_IWUSR) ? 'w' : '-';
+                        perms[3] = (st.st_mode & S_IXUSR) ? 'x' : '-';
+                        perms[4] = (st.st_mode & S_IRGRP) ? 'r' : '-';
+                        perms[5] = (st.st_mode & S_IWGRP) ? 'w' : '-';
+                        perms[6] = (st.st_mode & S_IXGRP) ? 'x' : '-';
+                        perms[7] = (st.st_mode & S_IROTH) ? 'r' : '-';
+                        perms[8] = (st.st_mode & S_IWOTH) ? 'w' : '-';
+                        perms[9] = (st.st_mode & S_IXOTH) ? 'x' : '-';
+                        perms[10] = '\0';
+                        
+                        // Format modification time
+                        struct tm *tm = localtime(&st.st_mtime);
+                        strftime(date, sizeof(date), "%Y-%m-%d %H:%M", tm);
+                        
+                        // Format size
+                        if (S_ISDIR(st.st_mode))
+                                snprintf(size_str, sizeof(size_str), "%-7s ", "<DIR>");
+                        else if (st.st_size < 1024)
+                                snprintf(size_str, sizeof(size_str), "%-7ld ", st.st_size);
+                        else if (st.st_size < 1024*1024)
+                                snprintf(size_str, sizeof(size_str), "%-7.1fK", st.st_size/1024.0);
+                        else if (st.st_size < 1024*1024*1024)
+                                snprintf(size_str, sizeof(size_str), "%-7.1fM", st.st_size/(1024.0*1024.0));
+                        else
+                                snprintf(size_str, sizeof(size_str), "%-7.1fG", st.st_size/(1024.0*1024.0*1024.0));
+                        
+                        // Format line
+                        snprintf(line, sizeof(line), "%-12s %5ld %-8s %-8s %7s %-20s %s\n",
+                                 perms,
+                                 (long)st.st_nlink,
+                                 getpwuid(st.st_uid) ? getpwuid(st.st_uid)->pw_name : "?",
+                                 getgrgid(st.st_gid) ? getgrgid(st.st_gid)->gr_name : "?",
+                                 size_str,
+                                 date,
+                                 entry->d_name);
+                        
+                        DA_APPEND_MANY(&New->Data, line, strlen(line));
+                        
+                        // Optional: Add symlink target
+                        if (S_ISLNK(st.st_mode))
+                        {
+                                char link_target[PATH_MAX];
+                                ssize_t len = readlink(fullpath, link_target, sizeof(link_target)-1);
+                                if (len != -1)
+                                {
+                                        link_target[len] = '\0';
+                                        char link_line[PATH_MAX+20];
+                                        snprintf(link_line, sizeof(link_line), "  -> %s\n", link_target);
+                                        DA_APPEND_MANY(&New->Data, link_line, strlen(link_line));
+                                }
+                        }
+                }
+
+                closedir(dir);
+                ATE_ComputeLines(&New->Data);
+        }
+        else if (S_ISREG(path_stat.st_mode))
+        {
+                New->Type = ATE_FIL;
+                FILE *fp = fopen(_path.Data, "rb");
+                if (fp)
+                {
+                        ATE_ReadFile(New, fp);
+                        fclose(fp);
+                }
+                else
+                {
+                        ATE_CloseBuffer(Manager, New);
+                }
+        }
+        ATE_FreeText(&_path);
+}
+
+ATE_Text ATE_CopyText(ATE_Text *Text)
+{
+        ATE_Text New = *Text;
+        New.Data = calloc(1, Text->Capacity);
+        memcpy(New.Data, Text->Data, Text->Count);
+        return New;
 }

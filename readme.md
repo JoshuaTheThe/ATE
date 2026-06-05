@@ -26,3 +26,6 @@
 | `C-x-n` | next buffer |
 | `C-x-p` | previous buffer |
 | `C-x-w` | write buffer |
+| `C-x-r` | open buffer with path from current word (relative to old buffer, replace old buffer) |
+| `C-x-o` | open buffer with path from current word (relative to old buffer) |
+| `C-x-d` | open buffer of current dir |
