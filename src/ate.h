@@ -23,6 +23,9 @@
 #include <grp.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <lua/lua.h>
+#include <lua/lauxlib.h>
+#include <lua/lualib.h>
 
 #define MIN(a,b) \
         (((a) < (b)) ? (a) : (b))
@@ -160,6 +163,7 @@ typedef struct
         ATE_Text Command;
         size_t   Focused;
         bool     ShouldClose;
+        lua_State *L;
 } ATE_BufferManager;
 
 /*

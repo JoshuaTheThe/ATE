@@ -29,3 +29,8 @@
 | `C-x-r` | open buffer with path from current word (relative to old buffer, replace old buffer) |
 | `C-x-o` | open buffer with path from current word (relative to old buffer) |
 | `C-x-d` | open buffer of current dir |
+
+# How to compile
+- get lua source code, put into src/lua
+- except lua.c and onelua.c
+- run `make`

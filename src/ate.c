@@ -55,6 +55,8 @@ static void get_terminal_size(int *rows, int *cols)
 ATE_BufferManager ATE_NewManager(void)
 {
         ATE_BufferManager man = {0};
+        man.L = luaL_newstate();
+        luaL_openlibs(man.L);
         enable_raw_mode();
         return man;
 }
@@ -68,6 +70,7 @@ void ATE_CloseManager(ATE_BufferManager *man)
         ATE_FreeText(&man->Clipboard);
         man->Focused = 0;
         disable_raw_mode();
+        lua_close(man->L);
 }
 
 size_t ATE_IndexOf(ATE_BufferManager *Manager, ATE_Buffer *Buffer)
