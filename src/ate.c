@@ -590,8 +590,10 @@ void ATE_OpenPath(ATE_BufferManager *Manager, ATE_Text *Path)
 
 ATE_Text ATE_CopyText(ATE_Text *Text)
 {
-        ATE_Text New = *Text;
-        New.Data = calloc(1, Text->Capacity);
+        ATE_Text New    = *Text;
+        New.Data        = calloc(1, Text->Capacity);
+        New.LineOffsets = calloc(Text->Lines, sizeof(*Text->LineOffsets));
         memcpy(New.Data, Text->Data, Text->Count);
+        memcpy(New.LineOffsets, Text->LineOffsets, Text->Lines*sizeof(*Text->LineOffsets));
         return New;
 }
