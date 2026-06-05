@@ -147,10 +147,6 @@ int main(int c, char **v)
                                 else
                                         Buffer->SelectionEnd = Buffer->CursorPos;
                         }
-                        else if (key == CTRL('v'))
-                        {
-                                Buffer->SelectionStart = Buffer->CursorPos;
-                        }
                         else if (key == CTRL('s'))
                         {
                                 if (Buffer->Path.Data[Buffer->Path.Count-1])
