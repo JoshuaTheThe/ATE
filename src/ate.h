@@ -119,8 +119,10 @@ typedef struct
                 size_t      Capacity;
         } Buffers;
 
-        size_t   Focused;
         ATE_Text Clipboard;
+        ATE_Text Command;
+        size_t   Focused;
+        bool     ShouldClose;
 } ATE_BufferManager;
 
 /*
@@ -192,4 +194,3 @@ void             ATE_FreeText(ATE_Text *Text);
 size_t           ATE_SizeOfLine(ATE_Text *Text, size_t Line);
 
 #endif
-

@@ -1,4 +1,6 @@
 #include <ate.h>
+#include <cmd.h>
+
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <termios.h>
@@ -9,32 +11,6 @@
 
 static struct termios orig_termios;
 static int old_flags;
-
-size_t next_word_start(ATE_Text *Data, size_t line, size_t col)
-{
-        const char *text = &Data->Data[Data->LineOffsets[line]];
-        size_t len = ATE_SizeOfLine(Data, line);
-        while (col < len && (text[col] == ' ' || text[col] == '\t'))
-                col++;
-        while (col < len && text[col] != ' ' && text[col] != '\t')
-                col++;
-        while (col < len && (text[col] == ' ' || text[col] == '\t'))
-                col++;
-        return col;
-}
-
-size_t prev_word_start(ATE_Text *Data, size_t line, size_t col)
-{
-        const char *text = &Data->Data[Data->LineOffsets[line]];
-        if (col == 0)
-                return 0;
-        col--;
-        while (col > 0 && (text[col] == ' ' || text[col] == '\t'))
-                col--;
-        while (col > 0 && text[col-1] != ' ' && text[col-1] != '\t')
-                col--;
-        return col;
-}
 
 void get_terminal_size(int *rows, int *cols)
 {
@@ -115,182 +91,12 @@ int main(int c, char **v)
         }
         
         ATE_Render(&Man, stdout);
-        while (1)
+        while (!Man.ShouldClose)
         {
                 int key = getch();
                 if (key != EOF)
                 {
-                        ATE_Buffer *Buffer = ATE_GetFocused(&Man);
-                        if (key == CTRL('h') && Buffer->CursorPos.X > 0)
-                        {
-                                Buffer->CursorPos.X -= 1;
-                        }
-                        else if (key == CTRL('c'))
-                        {
-                                ATE_FreeText(&Man.Clipboard);
-                                Man.Clipboard = ATE_YankSelection(
-                                                        Buffer,
-                                                        Buffer->SelectionStart,
-                                                        Buffer->SelectionEnd);
-                        }
-                        else if (key == CTRL('v'))
-                        {
-                                ATE_InsertText(Buffer,
-                                               &Man.Clipboard,
-                                               Buffer->CursorPos);
-                        }
-                        else if (key == CTRL('@'))
-                        {
-                                Buffer->Selecting = !Buffer->Selecting;
-                                if (Buffer->Selecting)
-                                        Buffer->SelectionStart = Buffer->CursorPos;
-                                else
-                                        Buffer->SelectionEnd = Buffer->CursorPos;
-                        }
-                        else if (key == CTRL('s'))
-                        {
-                                if (Buffer->Path.Data[Buffer->Path.Count-1])
-                                {
-                                        ATE_AppendCharToText(&Buffer->Path, 0);
-                                }
-                                FILE *fp = fopen(Buffer->Path.Data, "w");
-                                if (!fp)
-                                        continue;
-                                ATE_WriteFile(Buffer, fp);
-                                fclose(fp);
-                        }
-                        else if (key == CTRL('z'))
-                        {
-                                if (Man.Focused == 0)
-                                        Man.Focused = Man.Buffers.Count - 1;
-                                else
-                                        Man.Focused--;
-                                Buffer = ATE_GetFocused(&Man);
-                        }
-                        else if (key == CTRL('x'))
-                        {
-                                Man.Focused++;
-                                if (Man.Focused >= Man.Buffers.Count)
-                                        Man.Focused = 0;
-                                Buffer = ATE_GetFocused(&Man);
-                        }
-                        else if (key == CTRL('l'))
-                        {
-                                const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
-                                Buffer->CursorPos.X = MIN(Buffer->CursorPos.X + 1, len-1);
-                        }
-                        else if (key == CTRL('j'))  // Down
-                        {
-                                if (Buffer->CursorPos.Y < Buffer->Data.Lines - 1)
-                                {
-                                        Buffer->CursorPos.Y++;
-                                        const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
-                                        Buffer->CursorPos.X = MIN(Buffer->CursorPos.X, len - 1);
-                                        if (Buffer->CursorPos.Y >= Buffer->WindowPos.Y + Buffer->WindowSize.Y)
-                                                Buffer->WindowPos.Y = Buffer->CursorPos.Y - Buffer->WindowSize.Y + 1;
-                                }
-                        }
-                        else if (key == CTRL('w'))
-                        {
-                                const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
-                                size_t new_x = next_word_start(&Buffer->Data, Buffer->CursorPos.Y, Buffer->CursorPos.X);
-                                
-                                if (new_x < len)
-                                {
-                                        Buffer->CursorPos.X = new_x;
-                                }
-                                else if (Buffer->CursorPos.Y < Buffer->Data.Lines - 1)
-                                {
-                                        Buffer->CursorPos.Y++;
-                                        Buffer->CursorPos.X = 0;
-                                        const size_t new_len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
-                                        while (Buffer->CursorPos.X < new_len && 
-                                               (Buffer->Data.Data[Buffer->Data.LineOffsets[Buffer->CursorPos.Y] + Buffer->CursorPos.X] == ' ' ||
-                                                Buffer->Data.Data[Buffer->Data.LineOffsets[Buffer->CursorPos.Y] + Buffer->CursorPos.X] == '\t'))
-                                        {
-                                            Buffer->CursorPos.X++;
-                                        }
-                                }
-                                else
-                                {
-                                        Buffer->CursorPos.X = len - 1;
-                                }
-                        }
-                        else if (key == CTRL('b'))
-                        {
-                                if (Buffer->CursorPos.X > 0)
-                                {
-                                        Buffer->CursorPos.X = prev_word_start(&Buffer->Data,
-                                                                               Buffer->CursorPos.Y,
-                                                                               Buffer->CursorPos.X);
-                                }
-                                else if (Buffer->CursorPos.Y > 0)
-                                {
-                                        Buffer->CursorPos.Y--;
-                                        size_t prev_len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
-                                        Buffer->CursorPos.X = prev_word_start(&Buffer->Data,
-                                                                               Buffer->CursorPos.Y,
-                                                                               prev_len);
-                                }
-                        }
-                        else if (key == CTRL('e'))
-                        {
-                                const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
-                                Buffer->CursorPos.X = len - 1;
-                        }
-                        else if (key == CTRL('^'))
-                        {
-                                Buffer->CursorPos.X = 0;
-                        }
-                        else if (key == CTRL('k'))  // Up
-                        {
-                                if (Buffer->CursorPos.Y > 0)
-                                {
-                                        Buffer->CursorPos.Y--;
-                                        const size_t len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y);
-                                        Buffer->CursorPos.X = MIN(Buffer->CursorPos.X, len - 1);
-                                        if (Buffer->CursorPos.Y < Buffer->WindowPos.Y)
-                                                Buffer->WindowPos.Y = Buffer->CursorPos.Y;
-                                }
-                        }
-                        else if (key == CTRL('q'))
-                                break;
-                        else if (key == '\b' || key == 127)
-                        {
-                                if (Buffer->CursorPos.X > 0)
-                                {
-                                        const size_t offset = Buffer->CursorPos.X + Buffer->Data.LineOffsets[Buffer->CursorPos.Y] - 1;
-                                        if (offset < Buffer->Data.Count)
-                                        DA_REMOVE(&Buffer->Data, offset);
-                                        ATE_ComputeLines(&Buffer->Data);
-                                        Buffer->CursorPos.X -= 1;
-                                }
-                                else if (Buffer->CursorPos.Y > 0)
-                                {
-                                        size_t prev_line_len = ATE_SizeOfLine(&Buffer->Data, Buffer->CursorPos.Y - 1);
-                                        size_t merge_pos = Buffer->Data.LineOffsets[Buffer->CursorPos.Y];
-                                        if (merge_pos > 0 && Buffer->Data.Data[merge_pos - 1] == '\n')
-                                                DA_REMOVE(&Buffer->Data, merge_pos - 1);
-                                        ATE_ComputeLines(&Buffer->Data);
-                                        Buffer->CursorPos.Y -= 1;
-                                        Buffer->CursorPos.X = prev_line_len - 1;
-                                }
-                        }
-                        else if (key == '\n')
-                        {
-                                const size_t offset = Buffer->CursorPos.X + Buffer->Data.LineOffsets[Buffer->CursorPos.Y];
-                                DA_INSERT(&Buffer->Data, offset, key);
-                                ATE_ComputeLines(&Buffer->Data);
-                                Buffer->CursorPos.Y += 1;
-                                Buffer->CursorPos.X  = 0;
-                        }
-                        else if (key >= ' ' && key <= '~')
-                        {
-                                const size_t offset = Buffer->CursorPos.X + Buffer->Data.LineOffsets[Buffer->CursorPos.Y];
-                                DA_INSERT(&Buffer->Data, offset, key); 
-                                ATE_ComputeLines(&Buffer->Data);
-                                Buffer->CursorPos.X += 1;
-                        }
+                        ATE_EnterCommand(&Man, key);
                         ATE_Render(&Man, stdout);
                 }
         }

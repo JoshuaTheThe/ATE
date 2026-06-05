@@ -356,6 +356,11 @@ void ATE_FreeText(ATE_Text *Text)
 {
         if (Text->Data)        free(Text->Data);
         if (Text->LineOffsets) free(Text->LineOffsets);
+        Text->Count       = 0;
+        Text->Capacity    = 0;
+        Text->Lines       = 0;
+        Text->Data        = NULL;
+        Text->LineOffsets = NULL;
 }
 
 size_t ATE_SizeOfLine(ATE_Text *Text, size_t Line)
@@ -404,4 +409,3 @@ void ATE_Render(ATE_BufferManager *Manager, FILE *fp)
                 (Buffer->CursorPos.X - Buffer->WindowPos.X) + 1 + int_padd + 1);
         fflush(fp);
 }
-

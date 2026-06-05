@@ -3,27 +3,25 @@
 - waow
 
 # Keybindings (for now)
-
-- in future i will make it have catagories, (like emacs, e.g. C-x,C-c)
-- but for now:
+- long keybindings build until non ctrl char
+- C-xx is ctrl+xx
+- prefixes are: X,C
 
 | Key | Function |
 |-|-|
-| `C-h` | Move left |
-| `C-j` | Move down |
-| `C-k` | Move up|
-| `C-l` | Move right |
-| `C-v` | Paste to position |
-| `C-@` | Toggle selection |
-| `C-s` | Save file |
-| `C-z` | Next Buffer |
-| `C-x` | Prev Buffer |
-| `C-w` | Skip word |
-| `C-b` | goto previous word |
-| `C-e` | end of line |
-| `C-^` | start of line |
-| `C-q` | exit |
-| `\b` | backspace |
-| `\n` | new line |
-| `*`  | character |
-
+| `C-[` | Move left |
+| `C-k` | Move down |
+| `C-i` | Move up|
+| `C-]` | Move right |
+| `C-w` | Next Word |
+| `C-b` | Previous Word |
+| `C-e` | End of Line |
+| `C-^` | Start of line |
+| `C-y` | Yank selection |
+| `C-p` | Paste |
+| `C-v` | Start/End selection |
+| `C-x-q` | quit |
+| `C-x-c` | close buffer |
+| `C-x-n` | next buffer |
+| `C-x-p` | previous buffer |
+| `C-x-w` | write buffer |
