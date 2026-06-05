@@ -4,7 +4,6 @@
 int main(int c, char **v)
 {
         ATE_BufferManager Man = ATE_NewManager();
-        ATE_OpenBuffer(&Man);
         for (size_t i = 1; i < c; ++i)
         {
                 ATE_Text Text = ATE_CreateText(v[i]);
@@ -12,6 +11,10 @@ int main(int c, char **v)
                 ATE_FreeText(&Text);
         }
         
+        ATE_Text Text = ATE_CreateText(".");
+        ATE_OpenPath(&Man, &Text);
+        ATE_FreeText(&Text);
+
         ATE_Render(&Man, stdout);
         while (!Man.ShouldClose)
         {
