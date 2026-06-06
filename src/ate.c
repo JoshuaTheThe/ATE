@@ -440,6 +440,7 @@ void ATE_Render(ATE_BufferManager *Manager, FILE *fp)
         size_t end_line = MIN(start_line + Buffer->WindowSize.Y, Buffer->Data.Lines);
 
         printf("\033[2J\033[H");
+        size_t remaining_lines = Buffer->WindowSize.Y - (end_line - start_line);
         for (size_t i = start_line; i < end_line; ++i)
         {
                 size_t line_length = (i + 1 < Buffer->Data.Lines) ?
@@ -448,11 +449,10 @@ void ATE_Render(ATE_BufferManager *Manager, FILE *fp)
                 fprintf(fp, "%*zu ", int_padd, i + 1);
                 if (line_length > 1)
                         fwrite(&Buffer->Data.Data[Buffer->Data.LineOffsets[i]], 1, line_length - 1, fp);
-                if (i < end_line - 1)
+                if (i < end_line - 1 || remaining_lines != 0)
                         fputc('\n', fp);
         }
 
-        size_t remaining_lines = Buffer->WindowSize.Y - (end_line - start_line);
         for (size_t i = 0; i < remaining_lines; ++i)
         {
                 if (i < remaining_lines - 1)
